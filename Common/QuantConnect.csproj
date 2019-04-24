@@ -241,6 +241,7 @@
     <Compile Include="Data\HistoryProviderInitializeParameters.cs" />
     <Compile Include="Data\HistoryRequestFactory.cs" />
     <Compile Include="Data\SubscriptionDataConfigExtensions.cs" />
+    <Compile Include="Data\UniverseSelection\PreSeleceted.cs" />
     <Compile Include="Expiry.cs" />
     <Compile Include="HistoryProviderEvents.cs" />
     <Compile Include="Indicators\IIndicatorWarmUpPeriodProvider.cs" />
