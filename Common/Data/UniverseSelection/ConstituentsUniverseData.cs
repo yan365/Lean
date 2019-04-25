@@ -19,7 +19,7 @@ using System.IO;
 namespace QuantConnect.Data.UniverseSelection
 {
     /// <summary>
-    /// Custom base data class used for <see cref="ConstituentsUniverse{T}"/>
+    /// Custom base data class used for <see cref="ConstituentsUniverse"/>
     /// </summary>
     public class ConstituentsUniverseData : BaseData
     {
@@ -80,13 +80,13 @@ namespace QuantConnect.Data.UniverseSelection
             try
             {
                 var csv = line.Split(',');
-                var preSelected = new ConstituentsUniverseData
+                var preselected = new ConstituentsUniverseData
                 {
                     Symbol = new Symbol(SecurityIdentifier.Parse(csv[0]), csv[1]),
                     Time = date
                 };
 
-                return preSelected;
+                return preselected;
             }
             catch (Exception)
             {

@@ -23,6 +23,7 @@ using QuantConnect.Data;
 using QuantConnect.Data.Auxiliary;
 using QuantConnect.Data.Custom;
 using QuantConnect.Data.Custom.Tiingo;
+using QuantConnect.Data.UniverseSelection;
 using QuantConnect.Interfaces;
 using QuantConnect.Lean.Engine.DataFeeds.Enumerators;
 using QuantConnect.Logging;
@@ -502,7 +503,7 @@ namespace QuantConnect.Lean.Engine.DataFeeds
                 textSubscriptionFactory.CreateStreamReaderError += (sender, args) =>
                 {
                     //Log.Error(string.Format("Failed to get StreamReader for data source({0}), symbol({1}). Skipping date({2}). Reader is null.", args.Source.Source, _mappedSymbol, args.Date.ToShortDateString()));
-                    if (_config.IsCustomData)
+                    if (_config.IsCustomData && _config.Type != typeof(ConstituentsUniverseData))
                     {
                         OnDownloadFailed(
                             new DownloadFailedEventArgs(
