@@ -65,8 +65,16 @@ namespace QuantConnect.Packets
         /// <summary>
         /// Default constructor for JSON
         /// </summary>
-        public BacktestNodePacket() 
-            : base(PacketType.BacktestNode)
+        public BacktestNodePacket()
+            : this(PacketType.BacktestNode)
+        {
+        }
+
+        /// <summary>
+        /// Default constructor for JSON
+        /// </summary>
+        public BacktestNodePacket(PacketType type)
+            : base(type)
         {
             Controls = new Controls
             {

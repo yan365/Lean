@@ -108,11 +108,12 @@ namespace QuantConnect.Configuration
         /// Gets the currently selected environment. If sub-environments are defined,
         /// they'll be returned as {env1}.{env2}
         /// </summary>
+        /// <param name="settings">The settings to get the environment from</param>
         /// <returns>The fully qualified currently selected environment</returns>
-        public static string GetEnvironment()
+        public static string GetEnvironment(JObject settings = null)
         {
             var environments = new List<string>();
-            JToken currentEnvironment = Settings.Value;
+            JToken currentEnvironment = settings ?? Settings.Value;
             var env = currentEnvironment["environment"];
             while (currentEnvironment != null && env != null)
             {
@@ -221,13 +222,14 @@ namespace QuantConnect.Configuration
         /// <typeparam name="T">The requested type</typeparam>
         /// <param name="key">Search key from the config file</param>
         /// <param name="defaultValue">The default value to use if not found in configuration</param>
+        /// <param name="settings">The settings to get the value from</param>
         /// <returns>Converted value of the config setting.</returns>
-        public static T GetValue<T>(string key, T defaultValue = default(T))
+        public static T GetValue<T>(string key, T defaultValue = default(T), JObject settings = null)
         {
             // special case environment requests
-            if (key == "environment" && typeof (T) == typeof (string)) return (T) (object) GetEnvironment();
+            if (key == "environment" && typeof (T) == typeof (string)) return (T) (object) GetEnvironment(settings);
 
-            var token = GetToken(Settings.Value, key);
+            var token = GetToken(settings ?? Settings.Value, key);
             if (token == null)
             {
                 Log.Trace(string.Format("Config.GetValue(): {0} - Using default value: {1}", key, defaultValue));
