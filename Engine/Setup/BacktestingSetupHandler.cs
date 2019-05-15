@@ -116,6 +116,13 @@ namespace QuantConnect.Lean.Engine.Setup
             string error;
             IAlgorithm algorithm;
 
+            if(!BaseSetupHandler.InitializeDebugging(algorithmNodePacket.Language,
+                algorithmNodePacket.RamAllocation,
+                WorkerThread))
+            {
+                throw new AlgorithmSetupException("Failed to initialize debugging");
+            }
+
             // limit load times to 60 seconds and force the assembly to have exactly one derived type
             var loader = new Loader(algorithmNodePacket.Language, TimeSpan.FromSeconds(60), names => names.SingleOrAlgorithmTypeName(Config.Get("algorithm-type-name")), WorkerThread);
             var complete = loader.TryCreateAlgorithmInstanceWithIsolator(assemblyPath, algorithmNodePacket.RamAllocation, out algorithm, out error);

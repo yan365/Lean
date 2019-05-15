@@ -88,6 +88,13 @@ namespace QuantConnect.Lean.Engine.Setup
             IAlgorithm algorithm;
             var algorithmName = Config.Get("algorithm-type-name");
 
+            if (!BaseSetupHandler.InitializeDebugging(algorithmNodePacket.Language,
+                algorithmNodePacket.RamAllocation,
+                WorkerThread))
+            {
+                throw new AlgorithmSetupException("Failed to initialize debugging");
+            }
+
             // don't force load times to be fast here since we're running locally, this allows us to debug
             // and step through some code that may take us longer than the default 10 seconds
             var loader = new Loader(algorithmNodePacket.Language, TimeSpan.FromHours(1), names => names.SingleOrDefault(name => MatchTypeName(name, algorithmName)), WorkerThread);
