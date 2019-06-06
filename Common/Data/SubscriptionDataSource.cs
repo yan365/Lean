@@ -35,7 +35,7 @@ namespace QuantConnect.Data
         public readonly FileFormat Format;
 
         /// <summary>
-        /// Identifies the transport medium used to access the data, such as a local or remote file, or a polling rest API
+        /// Identifies the transport medium used to access the data, such as a local or remote file, a polling rest API or streaming API
         /// </summary>
         public readonly SubscriptionTransportMedium TransportMedium;
 

@@ -125,7 +125,8 @@ namespace QuantConnect.Lean.Engine.DataFeeds
             {
                 // send the subscription for the new symbol through to the data queuehandler
                 // unless it is custom data, custom data is retrieved using the same as backtest
-                if (!subscription.Configuration.IsCustomData)
+                if (!subscription.Configuration.IsCustomData ||
+                    GetSource(request.Configuration).TransportMedium == SubscriptionTransportMedium.Streaming)
                 {
                     _dataQueueHandler.Subscribe(_job, new[] { request.Security.Symbol });
                 }
@@ -143,7 +144,8 @@ namespace QuantConnect.Lean.Engine.DataFeeds
             var symbol = subscription.Configuration.Symbol;
 
             // remove the subscriptions
-            if (subscription.Configuration.IsCustomData)
+            if (subscription.Configuration.IsCustomData &&
+                GetSource(subscription.Configuration).TransportMedium != SubscriptionTransportMedium.Streaming)
             {
                 _customExchange.RemoveEnumerator(symbol);
                 _customExchange.RemoveDataHandler(symbol);
@@ -198,43 +200,67 @@ namespace QuantConnect.Lean.Engine.DataFeeds
                 IEnumerator<BaseData> enumerator;
                 if (request.Configuration.IsCustomData)
                 {
-                    if (!Quandl.IsAuthCodeSet)
+                    var source = GetSource(request.Configuration);
+
+                    if (source.TransportMedium == SubscriptionTransportMedium.Streaming)
                     {
-                        // we're not using the SubscriptionDataReader, so be sure to set the auth token here
-                        Quandl.SetAuthCode(Config.Get("quandl-auth-token"));
+                        // custom streaming subscriptions can pass right through
+                        var customEnumerator = new EnqueueableEnumerator<BaseData>();
+
+                        _exchange.AddDataHandler(request.Configuration.Symbol, data =>
+                        {
+                            customEnumerator.Enqueue(data);
+                            subscription.OnNewDataAvailable();
+
+                            UpdateSubscriptionRealTimePrice(
+                                subscription,
+                                timeZoneOffsetProvider,
+                                request.Security.Exchange.Hours,
+                                data);
+                        });
+
+                        enumerator = customEnumerator;
                     }
-
-                    if (!Tiingo.IsAuthCodeSet)
+                    else
                     {
-                        // we're not using the SubscriptionDataReader, so be sure to set the auth token here
-                        Tiingo.SetAuthCode(Config.Get("tiingo-auth-token"));
+                        if (!Quandl.IsAuthCodeSet)
+                        {
+                            // we're not using the SubscriptionDataReader, so be sure to set the auth token here
+                            Quandl.SetAuthCode(Config.Get("quandl-auth-token"));
+                        }
+
+                        if (!Tiingo.IsAuthCodeSet)
+                        {
+                            // we're not using the SubscriptionDataReader, so be sure to set the auth token here
+                            Tiingo.SetAuthCode(Config.Get("tiingo-auth-token"));
+                        }
+
+                        if (!USEnergyInformation.IsAuthCodeSet)
+                        {
+                            // we're not using the SubscriptionDataReader, so be sure to set the auth token here
+                            USEnergyInformation.SetAuthCode(Config.Get("us-energy-information-auth-token"));
+                        }
+
+                        var factory = new LiveCustomDataSubscriptionEnumeratorFactory(_timeProvider);
+                        var enumeratorStack = factory.CreateEnumerator(request, _dataProvider);
+
+                        _customExchange.AddEnumerator(request.Configuration.Symbol, enumeratorStack);
+
+                        var enqueable = new EnqueueableEnumerator<BaseData>();
+                        _customExchange.SetDataHandler(request.Configuration.Symbol, data =>
+                        {
+                            enqueable.Enqueue(data);
+
+                            subscription.OnNewDataAvailable();
+
+                            UpdateSubscriptionRealTimePrice(
+                                subscription,
+                                timeZoneOffsetProvider,
+                                request.Security.Exchange.Hours,
+                                data);
+                        });
+                        enumerator = enqueable;
                     }
-
-                    if (!USEnergyInformation.IsAuthCodeSet)
-                    {
-                        // we're not using the SubscriptionDataReader, so be sure to set the auth token here
-                        USEnergyInformation.SetAuthCode(Config.Get("us-energy-information-auth-token"));
-                    }
-
-                    var factory = new LiveCustomDataSubscriptionEnumeratorFactory(_timeProvider);
-                    var enumeratorStack = factory.CreateEnumerator(request, _dataProvider);
-
-                    _customExchange.AddEnumerator(request.Configuration.Symbol, enumeratorStack);
-
-                    var enqueable = new EnqueueableEnumerator<BaseData>();
-                    _customExchange.SetDataHandler(request.Configuration.Symbol, data =>
-                    {
-                        enqueable.Enqueue(data);
-
-                        subscription.OnNewDataAvailable();
-
-                        UpdateSubscriptionRealTimePrice(
-                            subscription,
-                            timeZoneOffsetProvider,
-                            request.Security.Exchange.Hours,
-                            data);
-                    });
-                    enumerator = enqueable;
                 }
                 else if (request.Configuration.Resolution != Resolution.Tick)
                 {
@@ -575,6 +601,12 @@ namespace QuantConnect.Lean.Engine.DataFeeds
             }
 
             Log.Trace("LiveTradingDataFeed.GetNextTicksEnumerator(): Exiting enumerator thread...");
+        }
+
+        private SubscriptionDataSource GetSource(SubscriptionDataConfig configuration)
+        {
+            var sourceFactory = (BaseData)Activator.CreateInstance(configuration.Type);
+            return sourceFactory.GetSource(configuration, _timeProvider.GetUtcNow(), true);
         }
 
         /// <summary>
