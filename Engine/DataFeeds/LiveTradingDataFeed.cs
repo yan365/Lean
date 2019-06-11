@@ -337,6 +337,10 @@ namespace QuantConnect.Lean.Engine.DataFeeds
                     _exchange.AddDataHandler(request.Configuration.Symbol, data =>
                     {
                         var tick = data as Tick;
+                        if (tick == null)
+                        {
+                            Log.Trace($"Tick handler: unexpected data type: {data?.GetType().FullName}");
+                        }
                         if (tick.TickType == request.Configuration.TickType)
                         {
                             tickEnumerator.Enqueue(data);
