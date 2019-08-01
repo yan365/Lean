@@ -15,6 +15,7 @@
 */
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -35,7 +36,8 @@ namespace QuantConnect.Lean.Engine.DataFeeds.Enumerators.Factories
     {
         private readonly bool _isLiveMode;
         private readonly Func<SubscriptionRequest, IEnumerable<DateTime>> _tradableDaysProvider;
-        private DateTime _lastUsedDate;
+        private static readonly ConcurrentDictionary<int, List<string>> FineFilesCache
+            = new ConcurrentDictionary<int, List<string>>();
 
         /// <summary>
         /// Initializes a new instance of the <see cref="FineFundamentalSubscriptionEnumeratorFactory"/> class.
@@ -99,66 +101,82 @@ namespace QuantConnect.Lean.Engine.DataFeeds.Enumerators.Factories
 
             if (!File.Exists(source.Source))
             {
-                if (_lastUsedDate == default(DateTime))
+                string directoryName;
+                try
                 {
-                    // find first file date
-                    List<string> availableFiles;
+                    directoryName = Path.GetDirectoryName(source.Source);
+                }
+                catch
+                {
+                    directoryName = null;
+                }
+                if (directoryName == null)
+                {
+                    return source;
+                }
+
+                var cacheKey = directoryName.GetHashCode();
+
+                List<string> availableFiles;
+                if (!FineFilesCache.TryGetValue(cacheKey, out availableFiles))
+                {
                     try
                     {
-                        availableFiles = Directory.GetFiles(Path.GetDirectoryName(source.Source),
-                            "*.zip").OrderBy(x => x).ToList();
+                        availableFiles = Directory.GetFiles(directoryName,"*.zip")
+                            .OrderBy(x => x).ToList();
                     }
                     catch
                     {
-                        // argument null exception or directory doesn't exist
+                        // directory doesn't exist or path is null
+                        if (!_isLiveMode)
+                        {
+                            // only cache if not live
+                            FineFilesCache[cacheKey] = new List<string>();
+                        }
                         return source;
                     }
 
-                    var fileName = Path.GetFileNameWithoutExtension(source.Source);
-
-                    // no files or requested date before first date, return null source
-                    if (availableFiles.Count == 0
-                        || string.CompareOrdinal(fileName,
-                            Path.GetFileNameWithoutExtension(availableFiles[0])) < 0)
+                    if (!_isLiveMode)
                     {
-                        return source;
+                        // only cache if not live
+                        FineFilesCache[cacheKey] = availableFiles;
                     }
-
-                    // take advantage of the order and avoid parsing and comparing all files to get the date
-                    var index = availableFiles.BinarySearch(fileName, new FileNameComparer());
-
-                    if (index < 0)
-                    {
-                        // if negative returns the complement of the index of the next element that is larger than Date
-                        // so subtract 1 to get the previous item which is less than Date
-                        index = ~index - 1;
-                    }
-
-                    var current = DateTime.ParseExact(
-                        Path.GetFileNameWithoutExtension(availableFiles[index]),
-                        "yyyyMMdd",
-                        CultureInfo.InvariantCulture);
-
-                    if (current <= date)
-                    {
-                        // we found the file, save its date and return the source
-                        _lastUsedDate = current;
-                        return fine.GetSource(config, current, _isLiveMode);
-                    }
-
-                    // this shouldn't ever happen so throw
-                    throw new InvalidOperationException("FineFundamentalSubscriptionEnumeratorFactory.GetSource(): " +
-                                                        $"failed to resolve source for {config.Symbol} on {date}");
                 }
-                else
+
+                var fileName = Path.GetFileNameWithoutExtension(source.Source);
+
+                // no files or requested date before first date, return null source
+                if (availableFiles.Count == 0
+                    || string.CompareOrdinal(fileName,
+                        Path.GetFileNameWithoutExtension(availableFiles[0])) < 0)
                 {
-                    // return source for last existing file date
-                    source = fine.GetSource(config, _lastUsedDate, _isLiveMode);
+                    return source;
                 }
-            }
-            else
-            {
-                _lastUsedDate = date;
+
+                // take advantage of the order and avoid parsing and comparing all files to get the date
+                var index = availableFiles.BinarySearch(fileName, new FileNameComparer());
+
+                if (index < 0)
+                {
+                    // if negative returns the complement of the index of the next element that is larger than Date
+                    // so subtract 1 to get the previous item which is less than Date
+                    index = ~index - 1;
+                }
+
+                var current = DateTime.ParseExact(
+                    Path.GetFileNameWithoutExtension(availableFiles[index]),
+                    "yyyyMMdd",
+                    CultureInfo.InvariantCulture);
+
+                if (current <= date)
+                {
+                    // we found the date, return the right source
+                    return fine.GetSource(config, current, _isLiveMode);
+                }
+
+                // this shouldn't ever happen so throw
+                throw new InvalidOperationException("FineFundamentalSubscriptionEnumeratorFactory.GetSource(): " +
+                                                    $"failed to resolve source for {config.Symbol} on {date}");
             }
 
             return source;
