@@ -33,6 +33,7 @@ using QuantConnect.Securities.Option;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace QuantConnect.AlgorithmFactory.Python.Wrappers
 {
@@ -260,6 +261,11 @@ namespace QuantConnect.AlgorithmFactory.Python.Wrappers
         /// Gets the Trade Builder to generate trades from executions
         /// </summary>
         public ITradeBuilder TradeBuilder => _baseAlgorithm.TradeBuilder;
+
+        /// <summary>
+        /// Thread synchronization event that signs whether the training of a model is completed
+        /// </summary>
+        public EventWaitHandle TrainingCompleted => _baseAlgorithm.TrainingCompleted;
 
         /// <summary>
         /// Gets the user settings for the algorithm

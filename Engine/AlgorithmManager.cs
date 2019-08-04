@@ -51,7 +51,7 @@ namespace QuantConnect.Lean.Engine
         private readonly object _lock = new object();
         private string _algorithmId = "";
         private DateTime _currentTimeStepTime;
-        private readonly TimeSpan _timeLoopMaximum = TimeSpan.FromMinutes(Config.GetDouble("algorithm-manager-time-loop-maximum", 20));
+        private TimeSpan _timeLoopMaximum = TimeSpan.FromMinutes(Config.GetDouble("algorithm-manager-time-loop-maximum", 20));
         private long _dataPointCount;
 
         /// <summary>
@@ -158,6 +158,7 @@ namespace QuantConnect.Lean.Engine
             var nextMarginCallTime = DateTime.MinValue;
             var settlementScanFrequency = TimeSpan.FromMinutes(30);
             var nextSettlementScanTime = DateTime.MinValue;
+            var trainingTimeLoop = TimeSpan.FromMinutes(job.Controls.TrainingTimeLoop);
 
             var delistings = new List<Delisting>();
             var splitWarnings = new List<Split>();
@@ -704,6 +705,16 @@ namespace QuantConnect.Lean.Engine
 
                 // poke the algorithm at the end of each time step
                 algorithm.OnEndOfTimeStep();
+
+                var timeLoopMaximum = _timeLoopMaximum;
+                _timeLoopMaximum = trainingTimeLoop;
+
+                if (!algorithm.TrainingCompleted.WaitOne(trainingTimeLoop))
+                {
+                    throw new TimeoutException($"Algorithm took longer than {trainingTimeLoop} minutes for training to complete.");
+                }
+
+                _timeLoopMaximum = timeLoopMaximum;
 
             } // End of ForEach feed.Bridge.GetConsumingEnumerable
 

@@ -17,6 +17,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
 using Newtonsoft.Json;
 using NUnit.Framework;
 using Python.Runtime;
@@ -769,6 +770,50 @@ namespace QuantConnect.Tests.Common.Util
         {
             var value = 10.999999m;
             Assert.AreEqual(10.999m, value.TruncateTo3DecimalPlaces());
+        }
+
+        [Test]
+        public void TimeoutAfterAndContinue_DoesNotTimeOut()
+        {
+            Action action = () => Thread.Sleep(1000);
+
+            action.TimeoutAfterAndContinue(TimeSpan.FromMilliseconds(2000))
+                .ContinueWith(x => Assert.IsTrue(x.IsCompleted))
+                .Wait();
+        }
+
+        [Test]
+        public void TimeoutAfterAndContinue_TimesOut()
+        {
+            Action action = () => Thread.Sleep(2000);
+
+            // Timeout exception: wait 900 ms for a 2s work
+            var task = action.TimeoutAfterAndContinue(TimeSpan.FromMilliseconds(500));
+            var exception = Assert.Throws<AggregateException>(() => task.Wait());
+            Assert.AreEqual(typeof(TimeoutException), exception.InnerException?.GetType());
+        }
+
+        [Test]
+        public void TimeoutAfterAndContinue_ActionThrowsExceptionBeforeTimeout()
+        {
+            Action divideByZeroAction = () => { var x = 0; var y = 1 / x; };
+
+            // Action throws exception
+            var task = divideByZeroAction.TimeoutAfterAndContinue(TimeSpan.FromMilliseconds(900));
+            var exception = Assert.Throws<AggregateException>(() => task.Wait());
+            Assert.AreEqual(typeof(DivideByZeroException), exception.InnerException?.GetType());
+        }
+
+        [Test]
+        public void TimeoutAfterAndContinue_CallbackThrowsExceptionBeforeTimeout()
+        {
+            Action action = () => Thread.Sleep(1000);
+            Action divideByZeroAction = () => { var x = 0; var y = 1 / x; };
+
+            // Callback throws exception
+            var task = action.TimeoutAfterAndContinue(TimeSpan.FromMilliseconds(2000), divideByZeroAction);
+            var exception = Assert.Throws<AggregateException>(() => task.Wait());
+            Assert.AreEqual(typeof(DivideByZeroException), exception.InnerException?.GetType());
         }
 
         private PyObject ConvertToPyObject(object value)

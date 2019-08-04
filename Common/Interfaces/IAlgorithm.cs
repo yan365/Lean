@@ -25,6 +25,7 @@ using QuantConnect.Orders;
 using QuantConnect.Scheduling;
 using QuantConnect.Securities;
 using System.Collections.Concurrent;
+using System.Threading;
 using QuantConnect.Algorithm.Framework.Alphas;
 using QuantConnect.Securities.Future;
 using QuantConnect.Securities.Option;
@@ -154,6 +155,14 @@ namespace QuantConnect.Interfaces
         {
             get;
             set;
+        }
+
+        /// <summary>
+        /// Thread synchronization event that signs whether the training of a model is completed
+        /// </summary>
+        EventWaitHandle TrainingCompleted
+        {
+            get;
         }
 
         /// <summary>

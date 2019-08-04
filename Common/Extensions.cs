@@ -1480,5 +1480,42 @@ namespace QuantConnect
                 return s;
             }
         }
+
+        /// <summary>
+        /// Queues the specified work to run on the thread pool that must complete within a specified time interval.
+        /// If the work completes within the interval, a new action is invoked if defined.
+        /// </summary>
+        /// <param name="action">The work to execute asynchronously</param>
+        /// <param name="delay">The time span to wait before completing the returned task, or TimeSpan.FromMilliseconds(-1) to wait indefinitely.</param>
+        /// <param name="continuationAction">The work to execute synchronously after the first work is completed</param>
+        /// <exception cref="TimeoutException">The exception that is thrown when the time allotted for the asynchronously work has expired.</exception>
+        public static async Task TimeoutAfterAndContinue(this Action action, TimeSpan? delay, Action continuationAction = null)
+        {
+            using (var timeoutCancellationTokenSource = new CancellationTokenSource(delay ?? Time.OneDay))
+            {
+                var token = timeoutCancellationTokenSource.Token;
+                try
+                {
+                    await Task.Run(
+                        () =>
+                        {
+                            action();
+                            token.ThrowIfCancellationRequested();
+                        },
+                        token
+                    );
+                }
+                // Process cancellation from ThrowIfCancellationRequested
+                catch (OperationCanceledException e)
+                {
+                    throw new TimeoutException(
+                        $"The operation has timed out after {delay.Value.TotalMinutes:F2} minutes",
+                        e
+                    );
+                }
+            }
+
+            continuationAction?.Invoke();
+        }
     }
 }
